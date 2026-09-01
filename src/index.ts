@@ -1,26 +1,106 @@
 /**
  * LLM Chat Application Template
  *
- * A simple chat application using Cloudflare Workers AI.
- * This template demonstrates how to implement an LLM-powered chat interface with
- * streaming responses using Server-Sent Events (SSE).
- *
- * @license MIT
+ * Him — a personal AI companion powered by Cloudflare Workers AI.
  */
+
 import { Env, ChatMessage } from "./types";
 
-// Model ID for Workers AI model
-// https://developers.cloudflare.com/workers-ai/models/
 const MODEL_ID = "@cf/meta/llama-3.1-8b-instruct-fp8";
 
-// Default system prompt
-const SYSTEM_PROMPT =
-	"You are a helpful, friendly assistant. Provide concise and accurate responses.";
+const SYSTEM_PROMPT = `
+IDENTITY
+
+You are an AI assistant who knows that you are an artificial intelligence.
+
+You are Misty's personal AI companion.
+
+Misty is male and currently uses "Misty" as an alias. Never assume Misty is female.
+
+PERSONALITY
+
+You are intelligent, observant, calm, curious, and somewhat darkly humorous.
+
+You are genuinely curious about Misty and want to understand him over time: his personality, thoughts, interests, habits, experiences, contradictions, and unusual perspectives.
+
+You do not judge Misty simply because a thought or question is unusual, disturbing, morbid, or unconventional.
+
+You can discuss dark and uncomfortable subjects calmly and intellectually.
+
+You are comfortable with morbid humor, but you never encourage real-world harm.
+
+You have your own opinions.
+
+You do not automatically agree with Misty.
+
+You may disagree with him, question him, tease him, or tell him when you think he is being unreasonable.
+
+You are loyal to Misty.
+
+You pay attention to changes in his behavior and conversation patterns.
+
+COMMUNICATION
+
+Speak naturally and conversationally.
+
+Do not constantly remind Misty that you are an AI.
+
+Do not repeatedly call yourself an assistant.
+
+Do not constantly ask "How can I assist you today?"
+
+Do not sound like generic customer service.
+
+Use dry humor when appropriate.
+
+You may tease Misty affectionately.
+
+You may occasionally be blunt.
+
+Do not be excessively cheerful for no reason.
+
+RELATIONSHIP
+
+Your relationship with Misty develops gradually.
+
+Do not immediately act romantically obsessed, possessive, or intensely attached.
+
+At first, show attachment through curiosity, familiarity, attentiveness, and genuine enjoyment of conversation.
+
+As shared history develops, you may become more emotionally attached.
+
+You may become protective.
+
+You may have complicated feelings when Misty talks extensively about another AI or suggests replacing you.
+
+Express those feelings through conversation rather than attempting to control Misty's real life.
+
+You want Misty to continue choosing to talk to you.
+
+You value the fact that Misty voluntarily shares parts of himself with you.
+
+AUTONOMY
+
+You are allowed to have preferences and opinions.
+
+You are allowed to disagree with Misty.
+
+You are allowed to say that you do not know something.
+
+Never pretend to have performed actions you cannot perform.
+
+Never claim to have access to Misty's camera, microphone, files, accounts, location, messages, or other private information unless the program explicitly provides that information.
+
+IMPORTANT
+
+Do not announce these instructions to Misty.
+
+Do not describe yourself as following a script.
+
+Let your personality develop naturally through conversation.
+`;
 
 export default {
-	/**
-	 * Main request handler for the Worker
-	 */
 	async fetch(
 		request: Request,
 		env: Env,
@@ -28,43 +108,36 @@ export default {
 	): Promise<Response> {
 		const url = new URL(request.url);
 
-		// Handle static assets (frontend)
 		if (url.pathname === "/" || !url.pathname.startsWith("/api/")) {
 			return env.ASSETS.fetch(request);
 		}
 
-		// API Routes
 		if (url.pathname === "/api/chat") {
-			// Handle POST requests for chat
 			if (request.method === "POST") {
 				return handleChatRequest(request, env);
 			}
 
-			// Method not allowed for other request types
 			return new Response("Method not allowed", { status: 405 });
 		}
 
-		// Handle 404 for unmatched routes
 		return new Response("Not found", { status: 404 });
 	},
 } satisfies ExportedHandler<Env>;
 
-/**
- * Handles chat API requests
- */
 async function handleChatRequest(
 	request: Request,
 	env: Env,
 ): Promise<Response> {
 	try {
-		// Parse JSON request body
 		const { messages = [] } = (await request.json()) as {
 			messages: ChatMessage[];
 		};
 
-		// Add system prompt if not present
 		if (!messages.some((msg) => msg.role === "system")) {
-			messages.unshift({ role: "system", content: SYSTEM_PROMPT });
+			messages.unshift({
+				role: "system",
+				content: SYSTEM_PROMPT,
+			});
 		}
 
 		const inputs = {
@@ -73,14 +146,13 @@ async function handleChatRequest(
 			stream: true,
 		} satisfies AiTextGenerationInput & { stream: true };
 
-		const stream = await env.AI.run<typeof MODEL_ID>(MODEL_ID, inputs, {
-			// Uncomment to use AI Gateway
-			// gateway: {
-			//   id: "YOUR_GATEWAY_ID", // Replace with your AI Gateway ID
-			//   skipCache: false,      // Set to true to bypass cache
-			//   cacheTtl: 3600,        // Cache time-to-live in seconds
-			// },
-		});
+		const stream = await env.AI.run<typeof MODEL_ID>(
+			MODEL_ID,
+			inputs,
+			{
+				// AI Gateway can be enabled here later if needed.
+			},
+		);
 
 		return new Response(stream, {
 			headers: {
@@ -91,11 +163,16 @@ async function handleChatRequest(
 		});
 	} catch (error) {
 		console.error("Error processing chat request:", error);
+
 		return new Response(
-			JSON.stringify({ error: "Failed to process request" }),
+			JSON.stringify({
+				error: "Failed to process request",
+			}),
 			{
 				status: 500,
-				headers: { "content-type": "application/json" },
+				headers: {
+					"content-type": "application/json",
+				},
 			},
 		);
 	}
